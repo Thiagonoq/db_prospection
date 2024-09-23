@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "sdr-prospecting"
+version = "0.1.0"
+description = ""
+authors = ["thiagonoq <thiago_neves@hotmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+motor = "^3.6.0"
+python-dotenv = "^1.0.1"
+tzdata = "^2024.1"
+aiohttp = "^3.10.5"
+pytz = "^2024.2"
+phonenumbers = "^8.13.45"
+requests = "^2.32.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
