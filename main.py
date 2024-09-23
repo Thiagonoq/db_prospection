@@ -113,7 +113,7 @@ async def prospection(prospector, zapi_instance, zapi_token, zapi_client_token):
         while True:
             now = datetime.now(tz=tz)
 
-            if enable_to_prospect():
+            if enable_to_prospect(now):
                 today_start = datetime(now.year, now.month, now.day, tzinfo=pytz.utc)
                 num_prospections_query = {
                     "prospection_date": {"$gte": today_start},
