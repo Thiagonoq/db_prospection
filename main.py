@@ -61,15 +61,7 @@ async def sleep_until_tomorrow(prospector_name):
     logging.info(f"Limite de prospecções diárias atingido para {prospector_name}. Aguardando {sleep_time / 3600:.2f} horas.")
     await asyncio.sleep(sleep_time)
 
-def choose_message(prospector_name):
-    with open("greeting_messages.json", "r", encoding="utf-8") as f:
-        messages = json.load(f)
-    
-    message = random.choice(messages)
-    return message.format(prospector=prospector_name)
-
-
-async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_token):
+async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_token, greeting_messages):
     async with aiohttp.ClientSession() as session:
         zapi = Zapi(zapi_instance, zapi_token, zapi_client_token)
         if not await zapi.get_instance_status(session):
@@ -118,7 +110,7 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
 
                 for prospect in prospection_data:
                     try:
-                        message = choose_message(prospector_name)
+                        message = random.choice(greeting_messages).format(prospector=prospector_name)
                         phone = re.sub(r"\D", "", str(prospect["phone"]))
 
                         if not await zapi.check_phone_exists(session, phone):
@@ -155,6 +147,7 @@ async def main():
     try:
         config_data = await mongo.find_one("config", {})
         prospectors_data = config_data.get("agendor_allowed_users", [])
+        greeting_messages = config_data.get("greeting_messages", [])
     
     except Exception as e:
         logging.exception(f"Erro ao buscar configuração: {e}")
@@ -172,7 +165,7 @@ async def main():
         try:
             zapi_instance = config.ZAPI_INSTANCE.get(prospector_name)
             zapi_token = config.ZAPI_TOKEN.get(prospector_name)
-            task = asyncio.create_task(prospection(prospector_name, zapi_instance, zapi_token, zapi_client_token))
+            task = asyncio.create_task(prospection(prospector_name, zapi_instance, zapi_token, zapi_client_token, greeting_messages))
             tasks.append(task)
         
         except Exception as e:
