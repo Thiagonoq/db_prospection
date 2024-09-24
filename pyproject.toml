@@ -6,13 +6,10 @@ authors = ["thiagonoq <thiago_neves@hotmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.10"
 motor = "^3.6.0"
 python-dotenv = "^1.0.1"
-tzdata = "^2024.1"
 aiohttp = "^3.10.5"
-pytz = "^2024.2"
-phonenumbers = "^8.13.45"
 requests = "^2.32.3"
 
 

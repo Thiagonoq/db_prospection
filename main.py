@@ -1,6 +1,5 @@
 import asyncio
 from datetime import datetime, timedelta, time
-import json
 import logging
 import os
 import random
