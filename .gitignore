@@ -6,3 +6,4 @@ __pycache__/
 log/
 
 greeting_messages.json
+prospecting_db.json

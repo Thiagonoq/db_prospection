@@ -121,25 +121,30 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
                         if await zapi.send_message(session, phone, message):
                             agendor_deal_id = prospect.get("agendor_deal_id")
                             if agendor_deal_id:
-                                agendor.update_deal_stage(prospect["agendor_deal_id"], 3)
+                                agendor.update_deal_stage(deal_id=agendor_deal_id, deal_stage=3, funnel_id=752583)
+                                logging.info(f"Atualizando o stage do deal {agendor_deal_id}")
                             else:
                                 logging.info(f"Agendamento de Prospeção não encontrado para {prospector_name}")
 
                             query = {"_id": prospect["_id"]}
                             update = {"$set": {"prospection_date": datetime.now()}}
                             await mongo.update_one("SDR_prospecting", query=query, update=update)
+                            
+                            logging.info(f"Prospecção de {prospector_name} aguardando 3 minutos...")
+                            await asyncio.sleep(random.randint(165, 195))
+                        
+                        else:
+                            logging.error(f"Erro ao enviar mensagem para {prospector_name}")
+                            await asyncio.sleep(random.randint(30, 45))
                         
                     except Exception as e:
                         prospect_name = prospect.get("name", "Nome desconhecido")
                         logging.exception(f"Erro ao prospectar {prospect_name} com o prospector {prospector_name}: {e}")
-                    
-                    finally:
-                        logging.info(f"Prospecção de {prospector_name} aguardando 3 minutos...")
-                        await asyncio.sleep(random.randint(165, 195))
+                        await asyncio.sleep(random.randint(30, 45))
 
             else:
                 logging.info(f"Prospecção fora do horário. Aguardando 10 minutos...")
-                await asyncio.sleep(random.randint(165, 195))
+                await asyncio.sleep(600)
 
 async def main():
     try:

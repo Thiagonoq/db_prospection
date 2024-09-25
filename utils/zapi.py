@@ -36,11 +36,11 @@ class Zapi:
             async with session.get(url, headers=self.headers) as response:
                 data = await response.json()
                 if response.status == 200 and data["exists"]:
-                    logging.info(f"Telefone {phone} existe no ZAPI: {self.instance}")
+                    logging.info(f"Telefone {phone} existe no Whatsapp: {self.instance}")
                     return True
                 
                 else:
-                    logging.error(f"Telefone {phone} não existe no ZAPI: {self.instance}")
+                    logging.error(f"Telefone {phone} não existe no Whatsapp: {self.instance}")
                     return False
 
         except Exception as e:
