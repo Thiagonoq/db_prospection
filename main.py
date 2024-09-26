@@ -39,11 +39,13 @@ def enable_to_prospect(now):
     """
     Verifica se o dia não é domingo e se o horário atual está dentro do horário de prospeção.
     """
+    print(now.weekday())
     if now.weekday() == 6:
         return False
 
     start_hour = 8
     end_hour = 20
+    print(start_hour <= now.hour <= end_hour)
     return start_hour <= now.hour <= end_hour
 
 async def sleep_until_tomorrow(prospector_name):
@@ -94,7 +96,7 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
                     "no_whatsapp": {"$ne": True}
                 }
                 try:
-                    prospection_data = await mongo.find("SDR_prospecting", query=prospection_query)
+                    prospection_data = await mongo.find("SDR_prospecting", query=prospection_query).limit(10)
 
                 except Exception as e:
                     logging.exception(f"Erro ao buscar prospecções para {prospector_name}: {e}")
@@ -107,6 +109,11 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
                     return
 
                 for prospect in prospection_data:
+                    now = datetime.now()
+                    if not enable_to_prospect(now):
+                        logging.info(f"Prospecção fora do horário. Aguardando 10 minutos...")
+                        break
+
                     try:
                         message = random.choice(greeting_messages).format(prospector=prospector_name)
                         phone = re.sub(r"\D", "", str(prospect["phone"]))
