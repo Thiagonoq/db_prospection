@@ -105,7 +105,9 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
 
                 if not prospection_data:
                     logging.info(f"Sem prospecções para {prospector_name}")
-                    await zapi.send_message(session, "553198929068", f"Minha lista de prospecção está vazia!")
+                    for support_number in config.SUPPORT_NUMBERS:
+                        await zapi.send_message(session, support_number, f"Minha lista de prospecção está vazia!")
+    
                     return
 
                 for prospect in prospection_data:
@@ -138,16 +140,16 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
                             await mongo.update_one("SDR_prospecting", query=query, update=update)
                             
                             logging.info(f"Prospecção de {prospector_name} aguardando 3 minutos...")
-                            await asyncio.sleep(random.randint(165, 195))
+                            await asyncio.sleep(random.randint(340, 380))
                         
                         else:
                             logging.error(f"Erro ao enviar mensagem para {prospector_name}")
-                            await asyncio.sleep(random.randint(30, 45))
+                            await asyncio.sleep(random.randint(45, 60))
                         
                     except Exception as e:
                         prospect_name = prospect.get("name", "Nome desconhecido")
                         logging.exception(f"Erro ao prospectar {prospect_name} com o prospector {prospector_name}: {e}")
-                        await asyncio.sleep(random.randint(30, 45))
+                        await asyncio.sleep(random.randint(45, 60))
 
             else:
                 logging.info(f"Prospecção fora do horário. Aguardando 10 minutos...")
@@ -157,7 +159,10 @@ async def main():
     try:
         config_data = await mongo.find_one("config", {})
         prospectors_data = config_data.get("agendor_allowed_users", [])
-        greeting_messages = config_data.get("greeting_messages", [])
+        greeting_messages = config_data.get("greeting_messages", {})
+
+        primary_messages = greeting_messages.get("primary", [])
+        secondary_messages = greeting_messages.get("secondary", [])
     
     except Exception as e:
         logging.exception(f"Erro ao buscar configuração: {e}")
@@ -168,15 +173,19 @@ async def main():
     tasks = []
     for prospector in prospectors_data:
         prospector_name = prospector["name"]
-        if prospector_name not in config.ZAPI_INSTANCE or prospector_name not in config.ZAPI_TOKEN:
+        if prospector_name not in config.ZAPI_CREDENTIALS:
             logging.warning(f"Configuração para {prospector_name} ausente. Tarefa de prospecção não iniciada.")
             continue
 
         try:
-            zapi_instance = config.ZAPI_INSTANCE.get(prospector_name)
-            zapi_token = config.ZAPI_TOKEN.get(prospector_name)
-            task = asyncio.create_task(prospection(prospector_name, zapi_instance, zapi_token, zapi_client_token, greeting_messages))
-            tasks.append(task)
+            primary_instance, primary_token = config.ZAPI_CREDENTIALS[prospector_name]["primary"]
+            secondary_instance, secondary_token = config.ZAPI_CREDENTIALS[prospector_name]["secondary"]
+
+            task_primary = asyncio.create_task(prospection(prospector_name, primary_instance, primary_token, zapi_client_token, primary_messages))
+            tasks.append(task_primary)
+
+            task_secondary = asyncio.create_task(prospection(prospector_name, secondary_instance, secondary_token, zapi_client_token, secondary_messages))
+            tasks.append(task_secondary)
         
         except Exception as e:
             logging.exception(f"Erro ao criar tarefa para {prospector_name}: {e}")

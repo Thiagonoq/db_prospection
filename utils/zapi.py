@@ -67,3 +67,34 @@ class Zapi:
             logging.exception(f"Error sending message to {phone}: {e}")
             return False
     
+    async def send_button_text(self, session: aiohttp.ClientSession, phone: str, message: str, buttons: list) -> bool:
+        url = f"{self.url}/send-button-list"
+        buttons_data = []
+        for i, button in enumerate(buttons):
+            buttons_data.append({
+                "id": i,
+                "label": button
+            })
+
+        payload = {
+            "phone": phone,
+            "message": message,
+            "buttonList": {
+                "buttons": buttons_data
+
+            }
+        }
+
+        try:
+            async with session.post(url, headers=self.headers, json=payload) as response:
+                if response.status == 200:
+                    logging.info(f"Message sent to {phone}")
+                    return True
+                
+                else:
+                    logging.error(f"Failed to send message to {phone}: {response.status} {response.reason}")
+                    return False
+                
+        except Exception as e:
+            logging.exception(f"Error sending message to {phone}: {e}")
+            return False
