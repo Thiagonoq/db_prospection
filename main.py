@@ -61,13 +61,33 @@ async def sleep_until_tomorrow(prospector_name):
     logging.info(f"Limite de prospecções diárias atingido para {prospector_name}. Aguardando {sleep_time / 3600:.2f} horas.")
     await asyncio.sleep(sleep_time)
 
+async def wait_for_instance_status(session, zapi, zapi_instance, prospector_name, initial_delay=250, max_delay=3600, max_retries=None):
+    """
+    Aguarda pelo status da instância ZAPI.
+    """
+    delay = initial_delay
+    retries = 0
+    while not await zapi.get_instance_status(session):
+        if max_retries is not None and retries >= max_retries:
+            logging.error(f"Instância ZAPI {zapi_instance} de {prospector_name} não conectada. Abortando prospeção.")
+            return False
+        
+        logging.error(f"Instância ZAPI {zapi_instance} de {prospector_name} não conectada, tentando novamente em {delay / 60:.2f} minutos")
+        await asyncio.sleep(random.randint(delay * 0.8, delay * 1.2))    
+
+        delay = min(delay * 2, max_delay)
+        retries += 1
+
+    return True
+
 async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_token, greeting_messages, instance_id):
     async with aiohttp.ClientSession() as session:
         zapi = Zapi(zapi_instance, zapi_token, zapi_client_token)
-        if not await zapi.get_instance_status(session):
-            logging.error(f"Instância ZAPI {zapi_instance} de {prospector_name} não conectada")
+        connected = await wait_for_instance_status(session, zapi, zapi_instance, prospector_name)
+
+        if not connected:
             return
-        
+
         while True:
             now = datetime.now()
 
@@ -144,7 +164,7 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
                         agendor_deal_id = prospect.get("agendor_deal_id")
                         try:
                             if agendor_deal_id:
-                                await agendor.update_deal_stage(deal_id=agendor_deal_id, deal_stage=3, funnel_id=752583)
+                                agendor.update_deal_stage(deal_id=agendor_deal_id, deal_stage=3, funnel_id=752583)
                                 logging.info(f"Atualizando o stage do deal {agendor_deal_id}")
                             else:
                                 logging.info(f"Agendamento de Prospeção não encontrado para {prospector_name}")

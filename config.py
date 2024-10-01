@@ -15,16 +15,16 @@ SERVICE_TOKEN = os.getenv("SERVICE_TOKEN")
 
 ZAPI_CREDENTIALS = {
     "Stênio": {
-        "primary": (os.getenv("ZAPI_STENIO1_TOKEN"), os.getenv("ZAPI_STENIO1_INSTANCE")),
-        "secondary": (os.getenv("ZAPI_STENIO2_TOKEN"), os.getenv("ZAPI_STENIO2_INSTANCE"))
+        "primary": (os.getenv("ZAPI_STENIO1_INSTANCE"), os.getenv("ZAPI_STENIO1_TOKEN")),
+        "secondary": (os.getenv("ZAPI_STENIO2_INSTANCE"), os.getenv("ZAPI_STENIO2_TOKEN"))
     },
     "Michelly": {
-        "primary": (os.getenv("ZAPI_MICHELLY1_TOKEN"), os.getenv("ZAPI_MICHELLY1_INSTANCE")),
-        "secondary": (os.getenv("ZAPI_MICHELLY2_TOKEN"), os.getenv("ZAPI_MICHELLY2_INSTANCE"))
+        "primary": (os.getenv("ZAPI_MICHELLY1_INSTANCE"), os.getenv("ZAPI_MICHELLY1_TOKEN")),
+        "secondary": (os.getenv("ZAPI_MICHELLY2_INSTANCE"), os.getenv("ZAPI_MICHELLY2_TOKEN"))
     },
     "Ana Paula": {
-        "primary": (os.getenv("ZAPI_ANA_PAULA1_TOKEN"), os.getenv("ZAPI_ANA_PAULA1_INSTANCE")),
-        "secondary": (os.getenv("ZAPI_ANA_PAULA2_TOKEN"), os.getenv("ZAPI_ANA_PAULA2_INSTANCE"))
+        "primary": (os.getenv("ZAPI_ANA_PAULA1_INSTANCE"), os.getenv("ZAPI_ANA_PAULA1_TOKEN")),
+        "secondary": (os.getenv("ZAPI_ANA_PAULA2_INSTANCE"), os.getenv("ZAPI_ANA_PAULA2_TOKEN"))
     }
 }
 
