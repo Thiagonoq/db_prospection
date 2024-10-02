@@ -80,15 +80,17 @@ async def wait_for_instance_status(session, zapi, zapi_instance, prospector_name
 
     return True
 
-async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_token, greeting_messages, instance_id):
+async def prospection(prospector_name, prospector_phone, zapi_instance, zapi_token, zapi_client_token, greeting_messages, instance_id):
     async with aiohttp.ClientSession() as session:
         zapi = Zapi(zapi_instance, zapi_token, zapi_client_token)
-        connected = await wait_for_instance_status(session, zapi, zapi_instance, prospector_name)
-
-        if not connected:
-            return
 
         while True:
+            connected = await wait_for_instance_status(session, zapi, zapi_instance, prospector_name)
+
+            if not connected:
+                await asyncio.sleep(random.randint(50, 70))
+                continue
+            
             now = datetime.now()
 
             if enable_to_prospect(now):
@@ -96,10 +98,10 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
 
                 num_prospections_query = {
                     "prospection_date": {"$gte": today_start},
-                    "prospector": prospector_name
+                    "prospector": prospector_phone
                 }
                 try:
-                    num_prospections = await mongo.count_documents("SDR_prospecting", query=num_prospections_query)
+                    num_prospections = await mongo.count_documents("sdr_prospecting", query=num_prospections_query)
                 
                 except Exception as e:
                     logging.exception(f"Erro ao contar prospecções para {prospector_name}: {e}")
@@ -112,13 +114,13 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
 
                 prospection_query = {
                     "prospection_date": {"$exists": False},
-                    "prospector": prospector_name,
+                    "prospector": prospector_phone,
                     "no_whatsapp": {"$ne": True},
                     "assigned_to": {"$exists": False}
                 }
                 try:
                     prospect = await mongo.find_one_and_update(
-                        "SDR_prospecting",
+                        "sdr_prospecting",
                         filter=prospection_query,
                         update={
                             "$set": {
@@ -128,7 +130,6 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
                         },
                         return_document=ReturnDocument.AFTER
                     )
-
                     if not prospect:
                         logging.info(f"Sem prospecções para {prospector_name}")
                         for support_number in config.SUPPORT_NUMBERS:
@@ -157,7 +158,7 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
                                 "assigned_at": ""
                             }
                         }
-                        await mongo.update_one("SDR_prospecting", query=query, update=update)
+                        await mongo.update_one("sdr_prospecting", query=query, update=update)
                         continue
 
                     if await zapi.send_message(session, phone, message):
@@ -183,7 +184,7 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
                                 "assigned_at": ""
                             }
                         }
-                        await mongo.update_one("SDR_prospecting", query=query, update=update)
+                        await mongo.update_one("sdr_prospecting", query=query, update=update)
                         
                         logging.info(f"Prospecção de {prospector_name} aguardando 6 minutos...")
                         await asyncio.sleep(random.randint(340, 380))
@@ -197,7 +198,7 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
                                 "assigned_at": ""
                                 }
                         }
-                        await mongo.update_one("SDR_prospecting", query=query, update=update)
+                        await mongo.update_one("sdr_prospecting", query=query, update=update)
                         logging.info(f"Prospecção de {prospector_name} aguardando 45 a 60 segundos...")
                         await asyncio.sleep(random.randint(45, 60))
                     
@@ -211,7 +212,7 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
                             "assigned_at": ""
                             }
                     }
-                    await mongo.update_one("SDR_prospecting", query=query, update=update)
+                    await mongo.update_one("sdr_prospecting", query=query, update=update)
                     logging.info(f"Prospecção de {prospector_name} aguardando 45 a 60 segundos...")
                     await asyncio.sleep(random.randint(45, 60))
 
@@ -237,8 +238,8 @@ async def clear_old_assigned_tasks():
                 }
             }
 
-            if await mongo.count_documents("SDR_prospecting", query) > 0:
-                await mongo.update_many("SDR_prospecting", query, update)
+            if await mongo.count_documents("sdr_prospecting", query) > 0:
+                await mongo.update_many("sdr_prospecting", query, update)
 
                 logging.info("Limpeza de tarefas antiga concluída.")
 
@@ -266,7 +267,8 @@ async def main():
 
     tasks = []
     for prospector in prospectors_data:
-        prospector_name = prospector["name"]
+        prospector_name = prospector["name"].replace(" - Video AI", "")
+        prospector_phone = prospector["phone"]
         if prospector_name not in config.ZAPI_CREDENTIALS:
             logging.warning(f"Configuração para {prospector_name} ausente. Tarefa de prospecção não iniciada.")
             continue
@@ -284,6 +286,7 @@ async def main():
                 primary_instance_id = str(uuid.uuid4())
                 task_primary = asyncio.create_task(prospection(
                     prospector_name,
+                    prospector_phone,
                     primary_instance,
                     primary_token,
                     zapi_client_token,
@@ -298,6 +301,7 @@ async def main():
                 secondary_instance_id = str(uuid.uuid4())
                 task_secondary = asyncio.create_task(prospection(
                     prospector_name,
+                    prospector_phone,
                     secondary_instance,
                     secondary_token,
                     zapi_client_token,

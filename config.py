@@ -1,7 +1,7 @@
 import dotenv
 import os
 
-dotenv.load_dotenv()
+dotenv.load_dotenv(override=True)
 
 DEV = os.getenv("DEV") == "true"
 
