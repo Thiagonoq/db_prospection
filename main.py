@@ -80,7 +80,7 @@ async def wait_for_instance_status(session, zapi, zapi_instance, prospector_name
 
     return True
 
-async def prospection(prospector_name, prospector_phone, zapi_instance, zapi_token, zapi_client_token, greeting_messages, instance_id):
+async def prospection(prospector_name, prospector_phone, zapi_instance, zapi_token, zapi_client_token, greeting_messages, instance_id, google = False):
     async with aiohttp.ClientSession() as session:
         zapi = Zapi(zapi_instance, zapi_token, zapi_client_token)
 
@@ -118,6 +118,9 @@ async def prospection(prospector_name, prospector_phone, zapi_instance, zapi_tok
                     "no_whatsapp": {"$ne": True},
                     "assigned_to": {"$exists": False}
                 }
+                if google:
+                    prospection_query["bd"] = "google"
+
                 try:
                     prospect = await mongo.find_one_and_update(
                         "sdr_prospecting",
@@ -282,20 +285,20 @@ async def main():
             secondary_instance, secondary_token = secondary
 
 
-            if primary_instance and primary_token:
-                primary_instance_id = str(uuid.uuid4())
-                task_primary = asyncio.create_task(prospection(
-                    prospector_name,
-                    prospector_phone,
-                    primary_instance,
-                    primary_token,
-                    zapi_client_token,
-                    primary_messages,
-                    primary_instance_id
-                ))
-                tasks.append(task_primary)
-            else:
-                logging.info(f"Instância primária para {prospector_name} está incompleta. Tarefa primária não iniciada.")
+            # if primary_instance and primary_token:
+            #     primary_instance_id = str(uuid.uuid4())
+            #     task_primary = asyncio.create_task(prospection(
+            #         prospector_name,
+            #         prospector_phone,
+            #         primary_instance,
+            #         primary_token,
+            #         zapi_client_token,
+            #         primary_messages,
+            #         primary_instance_id
+            #     ))
+            #     tasks.append(task_primary)
+            # else:
+            #     logging.info(f"Instância primária para {prospector_name} está incompleta. Tarefa primária não iniciada.")
 
             if secondary_instance and secondary_token:
                 secondary_instance_id = str(uuid.uuid4())
@@ -306,7 +309,8 @@ async def main():
                     secondary_token,
                     zapi_client_token,
                     secondary_messages,
-                    secondary_instance_id
+                    secondary_instance_id,
+                    google=True
                 ))
                 tasks.append(task_secondary)
             else:
