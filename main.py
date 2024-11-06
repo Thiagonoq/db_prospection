@@ -114,10 +114,11 @@ async def prospection(prospector_name, prospector_phone, zapi_instance, zapi_tok
 
                 prospection_query = {
                     "prospection_date": {"$exists": False},
-                    "prospector": prospector_phone,
+                    "prospector.phone": prospector_phone,
                     "no_whatsapp": {"$ne": True},
                     "assigned_to": {"$exists": False}
                 }
+                print(prospection_query)
                 if google:
                     prospection_query["bd"] = "google"
 
@@ -148,8 +149,9 @@ async def prospection(prospector_name, prospector_phone, zapi_instance, zapi_tok
                 try:
                     message = random.choice(greeting_messages).format(prospector=prospector_name, greeting=get_greetings())
                     phone = re.sub(r"\D", "", str(prospect["phone"]))
+                    whatsapp_number = await zapi.get_whatsapp_number(session, phone)
 
-                    if not await zapi.check_phone_exists(session, phone):
+                    if not whatsapp_number:
                         logging.info(f"Telefone {phone} não possui WhatsApp")
                         query = {"_id": prospect["_id"]}
                         update = {
@@ -162,9 +164,12 @@ async def prospection(prospector_name, prospector_phone, zapi_instance, zapi_tok
                             }
                         }
                         await mongo.update_one("sdr_prospecting", query=query, update=update)
+                        await asyncio.sleep(random.randint(7, 13))
                         continue
+                    
+                    await asyncio.sleep(random.randint(7, 13))
 
-                    if await zapi.send_message(session, phone, message):
+                    if await zapi.send_message(session, whatsapp_number, message):
                         agendor_deal_id = prospect.get("agendor_deal_id")
                         try:
                             if agendor_deal_id:
@@ -180,6 +185,7 @@ async def prospection(prospector_name, prospector_phone, zapi_instance, zapi_tok
                         query = {"_id": prospect["_id"]}
                         update = {
                             "$set": {
+                                "phone": whatsapp_number if isinstance(whatsapp_number, str) else phone,
                                 "prospection_date": datetime.now()
                             },
                             "$unset": {
@@ -189,8 +195,8 @@ async def prospection(prospector_name, prospector_phone, zapi_instance, zapi_tok
                         }
                         await mongo.update_one("sdr_prospecting", query=query, update=update)
                         
-                        logging.info(f"Prospecção de {prospector_name} aguardando 6 minutos...")
-                        await asyncio.sleep(random.randint(340, 380))
+                        logging.info(f"Prospecção de {prospector_name} aguardando 5 minutos...")
+                        await asyncio.sleep(random.randint(280, 320))
                     
                     else:
                         logging.error(f"Erro ao enviar mensagem para {prospector_name}")
@@ -256,8 +262,8 @@ async def clear_old_assigned_tasks():
 async def main():
     try:
         config_data = await mongo.find_one("config", {})
-        prospectors_data = config_data.get("agendor_allowed_users", [])
         greeting_messages = config_data.get("greeting_messages", {})
+        prospectors_data = await mongo.find("sellers", {})
 
         primary_messages = greeting_messages.get("primary", [])
         secondary_messages = greeting_messages.get("secondary", [])
@@ -310,7 +316,7 @@ async def main():
                     zapi_client_token,
                     secondary_messages,
                     secondary_instance_id,
-                    google=True
+                    google=False
                 ))
                 tasks.append(task_secondary)
             else:
