@@ -66,6 +66,47 @@ class Zapi:
         except Exception as e:
             logging.exception(f"Error sending message to {phone}: {e}")
             return False
+        
+    async def send_image(self, session: aiohttp.ClientSession, phone: str, image_url: str, message: str) -> bool:
+        url = f"{self.url}/send-image"
+        payload = {
+            "phone": phone,
+            "image": image_url,
+            "caption": message
+        }
+        try:
+            async with session.post(url, headers=self.headers, json=payload) as response:
+                if response.status == 200:
+                    logging.info(f"Image sent to {phone}")
+                    return True
+                
+                else:
+                    logging.error(f"Failed to send image to {phone}: {response.status} {response.reason}")
+                    return False
+                
+        except Exception as e:
+            logging.exception(f"Error sending image to {phone}: {e}")
+            return False
+        
+    async def send_audio(self, session: aiohttp.ClientSession, phone: str, audio_url: str) -> bool:
+        url = f"{self.url}/send-audio"
+        payload = {
+            "phone": phone,
+            "audio": audio_url
+        }
+        try:
+            async with session.post(url, headers=self.headers, json=payload) as response:
+                if response.status == 200:
+                    logging.info(f"Audio sent to {phone}")
+                    return True
+                
+                else:
+                    logging.error(f"Failed to send audio to {phone}: {response.status} {response.reason}")
+                    return False
+                
+        except Exception as e:
+            logging.exception(f"Error sending audio to {phone}: {e}")
+            return False
     
     async def send_button_text(self, session: aiohttp.ClientSession, phone: str, message: str, buttons: list) -> bool:
         url = f"{self.url}/send-button-list"

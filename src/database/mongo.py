@@ -6,7 +6,7 @@ import config
 import logging
 
 DEV = config.DEV
-uri = config.MONGODB_URI if not DEV else "mongodb://localhost:27017"
+uri = config.MONGODB_URI #if not DEV else "mongodb://localhost:27017"
 DB_NAME = config.MONGODB_NAME
 
 
@@ -19,6 +19,14 @@ class MongoDB:
 
     def get_collection(self, collection_name: str):
         return self.db[collection_name]
+    
+    async def index_information(self, collection_name: str) -> Dict[str, Any]:
+        try:
+            collection = self.get_collection(collection_name)
+            return await collection.index_information()
+        except Exception as e:
+            logging.error(f"Erro ao obter informações de índice na coleção {collection_name}: {e}")
+            return {}
     
     async def find(self, collection_name: str, query: Dict[str, Any]) -> list[dict]:
         try:
@@ -93,6 +101,18 @@ class MongoDB:
             return await collection.update_many(query, update, upsert=upsert)
         except Exception as e:
             logging.error(f"Erro ao atualizar vários documentos no MongoDB: {e}")
+            return None
+        
+    async def delete_one(
+        self,
+        collection_name: str,
+        query: Dict[str, Any]
+    ) -> Any:
+        try:
+            collection = self.get_collection(collection_name)
+            return await collection.delete_one(query)
+        except Exception as e:
+            logging.error(f"Erro ao deletar um documento no MongoDB: {e}")
             return None
 
 mongo = MongoDB()
