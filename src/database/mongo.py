@@ -28,10 +28,10 @@ class MongoDB:
             logging.error(f"Erro ao obter informações de índice na coleção {collection_name}: {e}")
             return {}
     
-    async def find(self, collection_name: str, query: Dict[str, Any]) -> list[dict]:
+    async def find(self, collection_name: str, query: Dict[str, Any], user_filter: Dict[str, Any] = {}) -> list[dict]:
         try:
             collection = self.get_collection(collection_name)
-            cursor = collection.find(query)
+            cursor = collection.find(query, user_filter)
             return await cursor.to_list(length=None)
         except Exception as e:
             logging.error(f"Erro ao buscar no MongoDB: {e}")        
@@ -44,7 +44,15 @@ class MongoDB:
         except Exception as e:
             logging.error(f"Erro ao buscar um documento no MongoDB: {e}")
             return None
-
+        
+    async def get_config(self, data: dict = {}):
+        try:
+            collection = self.get_collection("config")
+            return await collection.find_one({}, {"_id": 0}.update(data))
+        except Exception as e:
+            logging.error(f"Erro ao buscar um documento no MongoDB: {e}")
+            return None
+    
     async def find_one_and_update(
         self,
         collection_name: str,

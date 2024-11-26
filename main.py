@@ -12,19 +12,9 @@ import config
 from src.database.mongo import mongo
 from utils.agendor import agendor
 from utils.zapi import Zapi
-from utils.logging_config import setup_logging
 
 now = datetime.now()
 
-log_path = os.path.join(
-    os.getcwd(),
-    "log",
-    str(now.year),
-    f"{now.month:02d}",
-    f"{now.day:02d}"
-)
-
-setup_logging(log_path)
 
 def get_greetings():
     now = datetime.now()

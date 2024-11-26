@@ -1,6 +1,7 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 import logging
+import os
 import random
 import re
 import aiohttp
@@ -10,8 +11,6 @@ from pymongo import ReturnDocument
 import config
 from src.database.mongo import mongo
 from utils.zapi import Zapi
-from src.helpers.auth import create_login_url
-from src.helpers.make_template import create_template
 
 now = datetime.now()
 
@@ -46,24 +45,6 @@ async def wait_for_instance_status(session, zapi, zapi_instance, prospector_name
 
     return True
 
-async def get_image(prospect: dict, prospect_client_id: str, instance_id: str, prospect_name: str):
-    image_url = prospect.get("image", {}).get("url")
-    if not image_url:
-        render_template = await create_template(prospect_client_id)
-        trys = 1
-        while True:
-            new_prospect = await mongo.find_one("prospecting_BF", {"_id": prospect["_id"]})
-            image_url = new_prospect.get("image", {}).get("url")
-            if image_url:
-                break
-            logging.info(f"{instance_id} - Url não encontrada, aguardando 10 segundos... {trys}ª tentativa...")
-            await asyncio.sleep(10)
-            trys += 1
-            if trys > 3:
-                raise Exception(f"Erro ao gerar imagem de {prospect_name}: {render_template}")
-
-    return image_url
-
 async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_token, instance_id, google = False):
     async with aiohttp.ClientSession() as session:
         zapi = Zapi(zapi_instance, zapi_token, zapi_client_token)
@@ -95,7 +76,7 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
 
                 try:
                     prospect = await mongo.find_one_and_update(
-                        "prospecting_BF",
+                        "prospecting_BF_frozen",
                         filter=prospection_query,
                         update={
                             "$set": {
@@ -133,26 +114,22 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
                                 "assigned_at": ""
                             }
                         }
-                        await mongo.update_one("prospecting_BF", query=query, update=update)
+                        await mongo.update_one("prospecting_BF_frozen", query=query, update=update)
                         await asyncio.sleep(random.randint(3, 6))
                         continue
                     
                     await asyncio.sleep(random.randint(3, 6))
-                    logging.info(f"Enviando mensagem para {phone} ({whatsapp_number})")
-                    prospect_client = await mongo.find_one("clients", {"client": phone})
-                    prospect_client_id = prospect_client["_id"]
-                    prospect_name = prospect_client.get("info", {}).get("name", "")
-                    image_url = get_image(prospect, prospect_client_id, instance_id, prospect_name)
-
-                    prospector_audio = config.BF_AUDIO[prospector_name]
-                    audio_sended = await zapi.send_audio(session, whatsapp_number, prospector_audio)
                     
-                    prospect_link = await create_login_url(prospect_client_id)
-                    prospect_message = f"Olá{f', {prospect_name}' if prospect_name else ''}!\nSegue o link para as artes de divulgação dos seus produtos. 🎨\nDeixamos 10 modelos gratuitos disponíveis exclusivamente para você!\n\n👇 Só clicar no link abaixo e editar com seus produtos e preços: \n{prospect_link}\n\n🛒 Aproveite e destaque seus produtos com facilidade!"
-                    await asyncio.sleep(random.randint(7, 13))
-                    image_sended = await zapi.send_image(session, whatsapp_number, image_url, prospect_message)
+                    prospect_message = "🔥 Alerta de oportunidade exclusiva para você!\n\nSua chance de explodir as vendas de hortifrúti com artes e vídeos narrados ilimitados e personalizados é AGORA!\n\nUse o cupom BLACK e aproveite 20% de desconto só na Black November! 🚀\n\nA oferta é limitada e só dura até o fim do mês!\n\nClique e garanta seu sucesso 👇\nhttps://payfast.greenn.com.br/68790/offer/n99JgQ?ch_id=5318 🎯"
 
-                    if audio_sended and image_sended:
+                    image_sended = await zapi.send_image(
+                        session,
+                        whatsapp_number,
+                        "https://storage.googleapis.com/video-ai-bae31.appspot.com/prospection_BF/bf.jpg",
+                        prospect_message
+                    )
+
+                    if image_sended:
                         query = {"_id": prospect["_id"]}
                         update = {
                             "$set": {
@@ -164,7 +141,7 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
                                 "assigned_at": ""
                             }
                         }
-                        await mongo.update_one("prospecting_BF", query=query, update=update)
+                        await mongo.update_one("prospecting_BF_frozen", query=query, update=update)
                         
                         logging.info(f"Prospecção de {prospector_name} aguardando 5 minutos...")
                         await asyncio.sleep(random.randint(280, 320))
@@ -178,7 +155,7 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
                                 "assigned_at": ""
                                 }
                         }
-                        await mongo.update_one("prospecting_BF", query=query, update=update)
+                        await mongo.update_one("prospecting_BF_frozen", query=query, update=update)
                         logging.info(f"Prospecção de {prospector_name} aguardando 45 a 60 segundos...")
                         await asyncio.sleep(random.randint(45, 60))
                     
@@ -192,7 +169,7 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
                             "assigned_at": ""
                             }
                     }
-                    await mongo.update_one("prospecting_BF", query=query, update=update)
+                    await mongo.update_one("prospecting_BF_frozen", query=query, update=update)
                     logging.info(f"Prospecção de {prospector_name} aguardando 45 a 60 segundos...")
                     await asyncio.sleep(random.randint(45, 60))
 
@@ -218,8 +195,8 @@ async def clear_old_assigned_tasks():
                 }
             }
 
-            if await mongo.count_documents("prospecting_BF", query) > 0:
-                await mongo.update_many("prospecting_BF", query, update)
+            if await mongo.count_documents("prospecting_BF_frozen", query) > 0:
+                await mongo.update_many("prospecting_BF_frozen", query, update)
 
                 logging.info("Limpeza de tarefas antiga concluída.")
 
@@ -270,19 +247,19 @@ async def main():
             else:
                 logging.info(f"Instância primária para {prospector_name} está incompleta. Tarefa primária não iniciada.")
 
-            if secondary_instance and secondary_token:
-                secondary_instance_id = str(uuid.uuid4())
-                task_secondary = asyncio.create_task(prospection(
-                    prospector_name,
-                    secondary_instance,
-                    secondary_token,
-                    zapi_client_token,
-                    secondary_instance_id,
-                    google=False
-                ))
-                tasks.append(task_secondary)
-            else:
-                logging.warning(f"Instância secundária para {prospector_name} está incompleta. Tarefa secundária não iniciada.")
+            # if secondary_instance and secondary_token:
+            #     secondary_instance_id = str(uuid.uuid4())
+            #     task_secondary = asyncio.create_task(prospection(
+            #         prospector_name,
+            #         secondary_instance,
+            #         secondary_token,
+            #         zapi_client_token,
+            #         secondary_instance_id,
+            #         google=False
+            #     ))
+            #     tasks.append(task_secondary)
+            # else:
+            #     logging.warning(f"Instância secundária para {prospector_name} está incompleta. Tarefa secundária não iniciada.")
         except Exception as e:
             logging.exception(f"Erro ao criar tarefa para {prospector_name}: {e}")
             continue
