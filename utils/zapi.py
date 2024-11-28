@@ -69,8 +69,6 @@ class Zapi:
         
     async def send_image(self, session: aiohttp.ClientSession, phone: str, image_url: str, message: str) -> bool:
         url = f"{self.url}/send-image"
-        if not image_url.startswith("http"):
-            image_url = "data:image/png;base64," + image_url
         payload = {
             "phone": phone,
             "image": image_url,

@@ -122,5 +122,17 @@ class MongoDB:
         except Exception as e:
             logging.error(f"Erro ao deletar um documento no MongoDB: {e}")
             return None
+        
+    async def aggregate(
+        self,
+        collection_name: str,
+        pipeline: list
+        ) -> Any:
+        try:
+            collection = self.get_collection(collection_name)
+            return await collection.aggregate(pipeline).to_list(length=None)
+        except Exception as e:
+            logging.error(f"Erro ao realizar uma agregação no MongoDB: {e}")
+            return None
 
 mongo = MongoDB()

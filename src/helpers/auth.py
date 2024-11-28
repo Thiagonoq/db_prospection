@@ -56,4 +56,4 @@ async def create_login_url(client_id: ObjectId, pass_by_client_id: str = None):
         else f"registrar/{client['niche']}/{easy_login}"
     )
 
-    return f"https://app.videoai.com.br/{route}"
+    return f"https://app.videoai.com.br/{route}?redirect=/biblioteca"

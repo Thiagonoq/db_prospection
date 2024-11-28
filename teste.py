@@ -2,6 +2,7 @@ import asyncio
 import json
 import random
 from argon2 import PasswordHasher
+import requests
 
 from bson import ObjectId
 
@@ -13,7 +14,7 @@ import config
 
 async def create_link():
     try:
-        print(await create_login_url(ObjectId("65c3930227b3107414c18364")))
+        print(await create_login_url(ObjectId("65dc90581318411f4bec7933")))
 
     except Exception as e:
         print(f"Erro geral: {e}")
@@ -157,11 +158,34 @@ async def create_frozen_db():
         json.dump(frozen_data, f, indent=4)
 
 
+async def get_links():
+    saved_changes = await mongo.find_one(
+            "saved_changes",
+            {
+                "client": ObjectId("65c5254bab7a00ee07fdb31e"),
+                "template_id": ObjectId("6605bd3534db70ef71a34409")
+            }
+        )
+    image_thumb = saved_changes.get("thumbnail", "")
+    image_url = image_thumb.replace("_500x500.webp", ".png")
+
+    try:
+        #tenta validar se existe a imagem no link
+        response = requests.get(image_url)
+        if response.status_code == 200:
+            print("Imagem encontrada no link:", image_url)
+        else:
+            print("Imagem nao encontrada no link:", image_url)
+
+    except Exception as e:
+        print("Erro ao validar a imagem no link:", image_url, e)
+
 if __name__ == "__main__":
     try:
         # asyncio.run(generate_login())
         # asyncio.run(create_link())
-        asyncio.run(test_art_generation())
+        asyncio.run(get_links())
+        # asyncio.run(test_art_generation())
         # asyncio.run(create_frozen_db())
 
     except Exception as e:

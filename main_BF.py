@@ -6,6 +6,7 @@ import re
 import aiohttp
 import uuid
 from pymongo import ReturnDocument
+import requests
 
 import config
 from src.database.mongo import mongo
@@ -46,23 +47,73 @@ async def wait_for_instance_status(session, zapi, zapi_instance, prospector_name
 
     return True
 
-async def get_image(prospect: dict, prospect_client_id: str, instance_id: str, prospect_name: str):
+async def get_image(session: aiohttp.ClientSession, prospect: dict, prospect_client_id: str, instance_id: str, prospect_name: str):
     image_url = prospect.get("image", {}).get("url")
     if not image_url:
-        render_template = await create_template(prospect_client_id)
-        trys = 1
-        while True:
-            new_prospect = await mongo.find_one("prospecting_BF", {"_id": prospect["_id"]})
-            image_url = new_prospect.get("image", {}).get("url")
-            if image_url:
-                break
-            logging.info(f"{instance_id} - Url não encontrada, aguardando 10 segundos... {trys}ª tentativa...")
-            await asyncio.sleep(10)
-            trys += 1
-            if trys > 3:
+        saved_changes = await mongo.find_one(
+            "saved_changes",
+            {
+                "client": prospect_client_id
+            }
+        )
+        if not saved_changes:
+            logging.error(f"Não foram encontradas mudanças salvas para o cliente {prospect_client_id}.")
+            return None
+        image_thumb = saved_changes.get("thumbnail", "")
+        image_url = image_thumb.replace("_500x500.webp", ".png")
+    try:
+        async with session.get(image_url) as response:
+            if response.status == 200:
+                logging.info(f"Imagem encontrada no link: {image_url}")
+                return image_url
+            else:
+                logging.info(f"Imagem não encontrada no link: {image_url}")
+                render_template = await create_template(prospect_client_id)
+                trys = 1
+                while trys <= 3:
+                    new_prospect = await mongo.find_one("prospecting_BF", {"_id": prospect["_id"]})
+                    image_url = new_prospect.get("image", {}).get("url")
+                    if image_url:
+                        logging.info(f"Imagem encontrada após {trys} tentativas: {image_url}")
+                        return image_url
+                    logging.info(f"{instance_id} - URL não encontrada, aguardando 10 segundos... {trys}ª tentativa...")
+                    await asyncio.sleep(10)
+                    trys += 1
                 raise Exception(f"Erro ao gerar imagem de {prospect_name}: {render_template}")
+    except Exception as e:
+        logging.error(f"Erro ao validar a imagem no link: {image_url}. Erro: {e}")
+        return None
 
-    return image_url
+
+
+
+async def veryfy_elegible_clients():
+    pipeline = [
+        {
+            "$match": {
+                "thumbnail": {"$exists": True}
+            }
+        },
+        {
+            "$group": {
+                "_id": "$client",
+                "count": {"$sum": 1}
+            }
+        },
+        {
+            "$match": {
+                "count": {"$gt": 8}
+            }
+        }
+    ]
+    has_library = await mongo.aggregate(
+        "saved_changes",
+        pipeline
+    )
+    clients_ids = [entry["_id"] for entry in has_library]
+
+    return clients_ids
+
 
 async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_token, instance_id, google = False):
     async with aiohttp.ClientSession() as session:
@@ -78,20 +129,25 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
             now = datetime.now()
 
             if enable_to_prospect(now):
+                elegible_clients_id = await veryfy_elegible_clients()
+
+                if not elegible_clients_id:
+                    logging.warning(f"Sem clientes com thumbnail. Aguardando 1 minuto para tentar novamente...")
+                    await asyncio.sleep(random.randint(50, 70))
+                    continue
+
                 prospection_query = {
                     "prospection_date": {"$exists": False},
                     "prospector": prospector_name,
-                    "assigned_to": {"$exists": False}
+                    "assigned_to": {"$exists": False},
+                    "client_id": {"$in": elegible_clients_id}
                 }
 
                 if google:
                     prospection_query["bd"] = "google"
 
                 if config.DEV:
-                    prospection_query = {
-                        "phone": "553198929068",
-                        "prospector": prospector_name
-                    }
+                    prospection_query["phone"] = "553198929068"
 
                 try:
                     prospect = await mongo.find_one_and_update(
@@ -142,8 +198,26 @@ async def prospection(prospector_name, zapi_instance, zapi_token, zapi_client_to
                     prospect_client = await mongo.find_one("clients", {"client": phone})
                     prospect_client_id = prospect_client["_id"]
                     prospect_name = prospect_client.get("info", {}).get("name", "")
-                    image_url = get_image(prospect, prospect_client_id, instance_id, prospect_name)
+                    image_url = await get_image(
+                        session,
+                        prospect,
+                        prospect_client_id,
+                        instance_id,
+                        prospect_name
+                    )
 
+                    if not image_url:
+                        logging.info(f"Sem imagem para {phone} ({whatsapp_number})")
+                        query = {"_id": prospect["_id"]}
+                        update = {
+                            "$unset": {
+                                "assigned_to": "",
+                                "assigned_at": ""
+                            }
+                        }
+                        await mongo.update_one("prospecting_BF", query=query, update=update)
+                        await asyncio.sleep(random.randint(3, 6))
+                        continue
                     prospector_audio = config.BF_AUDIO[prospector_name]
                     audio_sended = await zapi.send_audio(session, whatsapp_number, prospector_audio)
                     
